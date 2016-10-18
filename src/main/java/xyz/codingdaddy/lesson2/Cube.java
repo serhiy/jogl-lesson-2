@@ -1,5 +1,10 @@
 package xyz.codingdaddy.lesson2;
 
+/**
+ * Represents the cube with different color shapes.
+ * 
+ * @author serhiy
+ */
 public class Cube {
 	private final float [] vertices = { /* Front face */
 										0.0f,  0.0f,  0.0f,

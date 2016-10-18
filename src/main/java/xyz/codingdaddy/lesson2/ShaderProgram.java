@@ -1,78 +1,101 @@
 package xyz.codingdaddy.lesson2;
 
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
-import java.util.Scanner;
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.jogamp.opengl.GL2;
 
+/**
+ * Manages the shader program.
+ * 
+ * @author serhiy
+ */
 public class ShaderProgram {
-	public static int createShader(GL2 gl2, int programId, String shaderCode, int shaderType) throws Exception {
-		int shaderId = gl2.glCreateShader(shaderType);
-		if (shaderId == 0) {
-			throw new Exception("Error creating shader. Shader id is zero.");
-		}
-		
-		gl2.glShaderSource(shaderId, 1, new String[] { shaderCode }, null);
-		gl2.glCompileShader(shaderId);
-		
-		IntBuffer intBuffer = IntBuffer.allocate(1);
-		gl2.glGetShaderiv(shaderId, GL2.GL_COMPILE_STATUS, intBuffer);
+	private int programId;
+	private int vertexShaderId;
+	private int fragmentShaderId;
+	private Map<EShaderAttribute, Integer> shaderAttributeLocations = new HashMap<>();
+	private boolean initialized = false;
 
-		if (intBuffer.get(0) != 1) {
-			gl2.glGetShaderiv(shaderId, GL2.GL_INFO_LOG_LENGTH, intBuffer);
-			int size = intBuffer.get(0);
-			if (size > 0) {
-				ByteBuffer byteBuffer = ByteBuffer.allocate(size);
-				gl2.glGetShaderInfoLog(shaderId, size, intBuffer, byteBuffer);
-				System.out.println(new String(byteBuffer.array()));
-			}
-			throw new Exception("Error compiling shader!");
+	/**
+	 * Initializes the shader program.
+	 * 
+	 * @param gl2 context.
+	 * @param vertexShader file.
+	 * @param fragmentShader file.
+	 * @return true if initialization was successful, false otherwise.
+	 */
+	public boolean init(GL2 gl2, File vertexShader, File fragmentShader) {
+		if (initialized) {
+			throw new IllegalStateException(
+					"Unable to initialize the shader program! (it was already initialized)");
 		}
 
-		gl2.glAttachShader(programId, shaderId);
+		try {
+			String vertexShaderCode = ShaderUtils.loadResource(vertexShader
+					.getPath());
+			String fragmentShaderCode = ShaderUtils.loadResource(fragmentShader
+					.getPath());
 
-		return shaderId;
+			programId = gl2.glCreateProgram();
+			vertexShaderId = ShaderUtils.createShader(gl2, programId,
+					vertexShaderCode, GL2.GL_VERTEX_SHADER);
+			fragmentShaderId = ShaderUtils.createShader(gl2, programId,
+					fragmentShaderCode, GL2.GL_FRAGMENT_SHADER);
+
+			ShaderUtils.link(gl2, programId);
+
+			shaderAttributeLocations.put(EShaderAttribute.POSITION,
+					gl2.glGetAttribLocation(programId, "inPosition"));
+			shaderAttributeLocations.put(EShaderAttribute.COLOR,
+					gl2.glGetAttribLocation(programId, "inColor"));
+
+			initialized = true;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return initialized;
+
 	}
-	
-	public static String loadResource(String fileName) throws Exception {
-		try (InputStream in = ShaderProgram.class.getClassLoader().getResourceAsStream(fileName)) {
-			return new Scanner(in, "UTF-8").useDelimiter("\\A").next();
-		}
+
+	/**
+	 * Destroys the shader program.
+	 * 
+	 * @param gl2 context.
+	 */
+	public void dispose(GL2 gl2) {
+		initialized = false;
+		gl2.glDetachShader(programId, vertexShaderId);
+		gl2.glDetachShader(programId, fragmentShaderId);
+		gl2.glDeleteProgram(programId);
 	}
-	
-	public static void link(GL2 gl2, int programId) throws Exception {
-		gl2.glLinkProgram(programId);
 
-		IntBuffer intBuffer = IntBuffer.allocate(1);
-		gl2.glGetProgramiv(programId, GL2.GL_LINK_STATUS, intBuffer);
-
-		if (intBuffer.get(0) != 1) {
-			gl2.glGetProgramiv(programId, GL2.GL_INFO_LOG_LENGTH, intBuffer);
-			int size = intBuffer.get(0);
-			if (size > 0) {
-				ByteBuffer byteBuffer = ByteBuffer.allocate(size);
-				gl2.glGetProgramInfoLog(programId, size, intBuffer, byteBuffer);
-				System.out.println(new String(byteBuffer.array()));
-			}
-			throw new Exception("Error linking shader program!");
+	/**
+	 * @return shader program id.
+	 */
+	public int getProgramId() {
+		if (!initialized) {
+			throw new IllegalStateException(
+					"Unable to get the program id! The shader program was not initialized!");
 		}
+		return programId;
+	}
 
-		gl2.glValidateProgram(programId);
-
-		intBuffer = IntBuffer.allocate(1);
-		gl2.glGetProgramiv(programId, GL2.GL_VALIDATE_STATUS, intBuffer);
-
-		if (intBuffer.get(0) != 1) {
-			gl2.glGetProgramiv(programId, GL2.GL_INFO_LOG_LENGTH, intBuffer);
-			int size = intBuffer.get(0);
-			if (size > 0) {
-				ByteBuffer byteBuffer = ByteBuffer.allocate(size);
-				gl2.glGetProgramInfoLog(programId, size, intBuffer, byteBuffer);
-				System.out.println(new String(byteBuffer.array()));
-			}
-			throw new Exception("Error validating shader program!");
+	/**
+	 * @param shaderAttribute to retrieve its location.
+	 * @return location of the shader attribute.
+	 */
+	public int getShaderAttributeLocation(EShaderAttribute shaderAttribute) {
+		if (!initialized) {
+			throw new IllegalStateException(
+					"Unable to get the attribute location! The shader program was not initialized!");
 		}
+		return shaderAttributeLocations.get(shaderAttribute);
+	}
+
+	public boolean isInitialized() {
+		return initialized;
 	}
 }
